@@ -1,20 +1,44 @@
+#!/usr/bin/env python 
 # Automated script to run the pspautotests test suite in PPSSPP.
 
 import sys
 import io
 import os
 import subprocess
+import threading
 
 
-PPSSPP_EXECUTABLES = [ "Windows\\Release\\PPSSPPHeadless.exe", "SDL/build/ppsspp-headless" ]
+PPSSPP_EXECUTABLES = [ "Windows\\Release\\PPSSPPHeadless.exe", "SDL/build/PPSSPPHeadless" ]
 PPSSPP_EXE = None
 TEST_ROOT = "pspautotests/tests/"
 teamcity_mode = False
+TIMEOUT = 5
+
+class Command(object):
+  def __init__(self, cmd):
+    self.cmd = cmd
+    self.process = None
+    self.output = None
+    self.timeout = False
+
+  def run(self, timeout):
+    def target():
+      self.process = subprocess.Popen(self.cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+      self.output, _ = self.process.communicate()
+
+    thread = threading.Thread(target=target)
+    thread.start()
+
+    thread.join(timeout)
+    if thread.is_alive():
+      self.timeout = True
+      self.process.terminate()
+      thread.join()
 
 # Test names are the C files without the .c extension.
 # These have worked and should keep working always - regression tests.
 tests_good = [
-  "cpu/cpu/cpu",
+  "cpu/cpu_alu/cpu_alu",
   "cpu/vfpu/base/vfpu",
   "cpu/vfpu/convert/vfpu_convert",
   "cpu/vfpu/prefixes/vfpu_prefixes",
@@ -23,14 +47,28 @@ tests_good = [
   "cpu/lsu/lsu",
   "cpu/fpu/fpu",
 
+  "ctrl/ctrl",
+  "ctrl/sampling/sampling",
   "display/display",
   "dmac/dmactest",
+  "loader/bss/bss",
   "intr/intr",
   "intr/vblank/vblank",
   "misc/testgp",
   "string/string",
   "gpu/callbacks/ge_callbacks",
+  "threads/lwmutex/create/create",
+  "threads/lwmutex/delete/delete",
+  "threads/lwmutex/lock/lock",
+  "threads/lwmutex/try/try",
+  "threads/lwmutex/try600/try600",
+  "threads/lwmutex/unlock/unlock",
   "threads/mbx/mbx",
+  "threads/mutex/create/create",
+  "threads/mutex/delete/delete",
+  "threads/mutex/lock/lock",
+  "threads/mutex/try/try",
+  "threads/mutex/unlock/unlock",
   "threads/semaphores/semaphores",
   "threads/semaphores/cancel/cancel",
   "threads/semaphores/create/create",
@@ -38,27 +76,27 @@ tests_good = [
   "threads/semaphores/poll/poll",
   "threads/semaphores/refer/refer",
   "threads/semaphores/signal/signal",
+  "threads/semaphores/wait/wait",
   "power/power",
-  "rtc/rtc",
   "umd/callbacks/umd",
   "io/directory/directory",
 ]
 
 tests_next = [
+  "audio/sascore/sascore",
   "malloc/malloc",
 # These are the next tests up for fixing. These run by default.
   "threads/fpl/fpl",
+  "threads/k0/k0",
   "threads/msgpipe/msgpipe",
   "threads/mutex/mutex",
+  "threads/mutex/priority/priority",
   "threads/scheduling/scheduling",
   "threads/semaphores/priority/priority",
-  "threads/semaphores/wait/wait",
   "threads/threads/threads",
   "threads/vpl/vpl",
   "threads/vtimers/vtimer",
   "threads/wakeup/wakeup",
-  "audio/sascore/sascore",
-  "ctrl/ctrl",
   "gpu/simple/simple",
   "gpu/triangle/triangle",
   "hle/check_not_used_uids",
@@ -67,25 +105,14 @@ tests_next = [
   "io/io/io",
   "io/iodrv/iodrv",
   "modules/loadexec/loader",
-  "threads/k0/k0",
-  "threads/fpl/fpl",
-  "threads/msgpipe/msgpipe",
-  "threads/mutex/mutex",
-  "threads/scheduling/scheduling",
-  "threads/threads/threads",
-  "threads/vpl/vpl",
-  "threads/vtimers/vtimers",
-  "threads/wakeup/wakeup",
+  "rtc/rtc",
   "umd/io/umd_io",
-  "umd/raw_access/raw_acess",
+  "umd/raw_access/raw_access",
   "utility/systemparam/systemparam",
-  "video/pmf",
-  "video/pmf_simple",
-]
+  "video/pmf/pmf",
+  "video/pmf_simple/pmf_simple",
 
-# These should be fixed, but currently hang or crash and are thus inconvenient to have
-# in the general test.
-tests_hang = [
+  # Currently hang or crash.
   "threads/events/events",
   "audio/atrac/atractest",
 ]
@@ -113,8 +140,9 @@ def init():
     print "Please run git submodule init; git submodule update;"
     sys.exit(1)
 
-  if not os.path.exists(TEST_ROOT + "cpu/cpu/cpu.prx"):
+  if not os.path.exists(TEST_ROOT + "cpu/cpu_alu/cpu_alu.prx"):
     print "Please install the pspsdk and run make in common/ and in all the tests" 
+    print "(checked for existence of cpu/cpu_alu/cpu_alu.prx)" 
     sys.exit(1)
 
   for p in PPSSPP_EXECUTABLES:
@@ -132,7 +160,7 @@ def tcprint(arg):
     print arg
 
 def run_tests(test_list, args):
-  global PPSSPP_EXE
+  global PPSSPP_EXE, TIMEOUT
   tests_passed = []
   tests_failed = []
   
@@ -159,15 +187,25 @@ def run_tests(test_list, args):
       tcprint("##teamcity[testIgnored name='%s' message='Expects file missing']" % test)
       continue
 
-    expected_output = open(expected_filename).read()
+    expected_output = open(expected_filename).read().strip()
     
     tcprint("##teamcity[testStarted name='%s' captureStandardOutput='true']" % test)
 
-    cmdline = PPSSPP_EXE + " " + elf_filename + " " + " ".join(args)
-    #print "Cmdline: " + cmdline
-    proc = subprocess.Popen(cmdline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True)
+    cmdline = [PPSSPP_EXE, elf_filename]
+    cmdline.extend([i for i in args if i not in ['-v', '-g']])
 
-    output = proc.stdout.read().strip()
+    c = Command(cmdline)
+    c.run(TIMEOUT)
+
+    output = c.output.strip()
+    
+    if c.timeout:
+      print output
+      print "Test exceded limit of %d seconds." % TIMEOUT
+      tcprint("##teamcity[testFailed name='%s' message='Test timeout']" % test)
+      tcprint("##teamcity[testFinished name='%s']" % test)
+      continue
+
     if output.startswith("TESTERROR"):
       print "Failed to run test " + elf_filename + "!"
       tests_failed.append(test)
@@ -176,16 +214,20 @@ def run_tests(test_list, args):
       continue
 
     different = False
-    expected_lines = expected_output.splitlines()
-    output_lines = output.splitlines()
+    expected_lines = [x.strip() for x in expected_output.splitlines()]
+    output_lines = [x.strip() for x in output.splitlines()]
     
     for i in range(0, min(len(output_lines), len(expected_lines))):
       if output_lines[i] != expected_lines[i]:
-        print "%i < %s" % (i, output_lines[i])
-        print "%i > %s" % (i, expected_lines[i])
+        print "E%i < %s" % (i + 1, expected_lines[i])
+        print "O%i > %s" % (i + 1, output_lines[i])
         different = True
 
     if len(output_lines) != len(expected_lines):
+      for i in range(len(output_lines), len(expected_lines)):
+        print "E%i < %s" % (i + 1, expected_lines[i])
+      for i in range(len(expected_lines), len(output_lines)):
+        print "O%i > %s" % (i + 1, output_lines[i])
       print "*** Different number of lines!"
       different = True
 

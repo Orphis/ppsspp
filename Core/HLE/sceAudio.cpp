@@ -148,15 +148,27 @@ u32 sceAudioOutputPanned(u32 chan, u32 leftVol, u32 rightVol, u32 samplePtr)
 
 int sceAudioGetChannelRestLen(u32 chan)
 {
+	if (chan < 0 || chan >= MAX_CHANNEL)
+	{
+		ERROR_LOG(HLE, "sceAudioGetChannelRestLen(%i) - BAD CHANNEL", chan);
+		return SCE_ERROR_AUDIO_INVALID_CHANNEL;
+	}
+
 	int sz = (int)chans[chan].sampleQueue.size() / 2;
-	DEBUG_LOG(HLE,"UNTESTED %i = sceAudioGetChannelRestLen(%i)", PARAM(0));
+	DEBUG_LOG(HLE,"UNTESTED %i = sceAudioGetChannelRestLen(%i)", sz, chan);
 	return sz;
 }
 
 int sceAudioGetChannelRestLength(u32 chan)
 {
+	if (chan < 0 || chan >= MAX_CHANNEL)
+	{
+		ERROR_LOG(HLE, "sceAudioGetChannelRestLength(%i) - BAD CHANNEL", chan);
+		return SCE_ERROR_AUDIO_INVALID_CHANNEL;
+	}
+
 	int sz = (int)chans[chan].sampleQueue.size() / 2;
-	DEBUG_LOG(HLE,"UNTESTED %i = sceAudioGetChannelRestLen(%i)", PARAM(0));
+	DEBUG_LOG(HLE,"UNTESTED %i = sceAudioGetChannelRestLen(%i)", sz, chan);
 	return sz;
 }
 
@@ -181,20 +193,26 @@ u32 sceAudioChReserve(u32 channel, u32 sampleCount, u32 format) //.Allocate soun
 	else
 	{
 		ERROR_LOG(HLE,"sceAudioChReserve failed");
-    return SCE_ERROR_AUDIO_NO_CHANNELS_AVAILABLE;
+		return SCE_ERROR_AUDIO_NO_CHANNELS_AVAILABLE;
 	}
 
-  if (format != PSP_AUDIO_FORMAT_MONO && format != PSP_AUDIO_FORMAT_STEREO)
-  {
-    ERROR_LOG(HLE, "sceAudioChReserve(channel = %d, sampleCount = %d, format = %d): invalid format", channel, sampleCount, format);
-    return SCE_ERROR_AUDIO_INVALID_FORMAT;
-  }
+	if (channel < 0 || channel >= MAX_CHANNEL)
+	{
+		ERROR_LOG(HLE ,"sceAudioChReserve(channel = %d, sampleCount = %d, format = %d) - BAD CHANNEL", channel, sampleCount, format);
+		return SCE_ERROR_AUDIO_INVALID_CHANNEL;
+	}
+
+	if (format != PSP_AUDIO_FORMAT_MONO && format != PSP_AUDIO_FORMAT_STEREO)
+	{
+		ERROR_LOG(HLE, "sceAudioChReserve(channel = %d, sampleCount = %d, format = %d): invalid format", channel, sampleCount, format);
+		return SCE_ERROR_AUDIO_INVALID_FORMAT;
+	}
 
 	if (chans[channel].reserved)
-  {
+	{
 		WARN_LOG(HLE, "WARNING: Reserving already reserved channel. Error?");
 	}
-	DEBUG_LOG(HLE, "%i = sceAudioChReserve(%i, %i, %i)", channel, PARAM(0), sampleCount, format);
+	DEBUG_LOG(HLE, "%i = sceAudioChReserve(%i, %i, %i)", channel, sampleCount, format);
 
 	chans[channel].sampleCount = sampleCount;
 	chans[channel].reserved = true;
@@ -203,11 +221,17 @@ u32 sceAudioChReserve(u32 channel, u32 sampleCount, u32 format) //.Allocate soun
 
 u32 sceAudioChRelease(u32 chan)
 {
-  if (!chans[chan].reserved)
-  {
-    ERROR_LOG(HLE,"sceAudioChRelease(%i): channel not reserved", chan);
-    return SCE_ERROR_AUDIO_CHANNEL_NOT_RESERVED;
-  }
+	if (chan < 0 || chan >= MAX_CHANNEL)
+	{
+		ERROR_LOG(HLE, "sceAudioChRelease(%i) - BAD CHANNEL", chan);
+		return SCE_ERROR_AUDIO_INVALID_CHANNEL;
+	}
+
+	if (!chans[chan].reserved)
+	{
+		ERROR_LOG(HLE,"sceAudioChRelease(%i): channel not reserved", chan);
+		return SCE_ERROR_AUDIO_CHANNEL_NOT_RESERVED;
+	}
 	chans[chan].reserved = false;
 
 	DEBUG_LOG(HLE, "sceAudioChRelease(%i)", chan);
@@ -276,45 +300,44 @@ u32 sceAudioChangeChannelVolume(u32 chan, u32 lvolume, u32 rvolume)
   }
 }
  
-void sceAudioInit()
+u32 sceAudioInit()
 {
-  DEBUG_LOG(HLE,"sceAudioInit()");
+	DEBUG_LOG(HLE,"sceAudioInit()");
 	// Don't need to do anything
-  RETURN(0);
+	return 0;
 }
-void sceAudioEnd()
+u32 sceAudioEnd()
 {
 	DEBUG_LOG(HLE,"sceAudioEnd()");
 	// Don't need to do anything
-	RETURN(0);
+	return 0;
 }
 
-void sceAudioOutput2Reserve()
+u32 sceAudioOutput2Reserve(u32 sampleCount)
 {
-	int sampleCount = PARAM(0);
-  ERROR_LOG(HLE,"sceAudioOutput2Reserve(%i)", sampleCount);
+	ERROR_LOG(HLE,"sceAudioOutput2Reserve(%i)", sampleCount);
 	chans[0].sampleCount = sampleCount;
 	chans[0].reserved = true;
-	RETURN(0);
+	return 0;
 }
 
-void sceAudioOutput2OutputBlocking()
+void sceAudioOutput2OutputBlocking(u32 vol, u32 dataPtr)
 {
-	int vol = PARAM(0);
-	u32 dataPtr = PARAM(1);
-
-  WARN_LOG(HLE,"FAKE sceAudioOutput2OutputBlocking(%i, %08x)", vol, dataPtr);
+	DEBUG_LOG(HLE,"FAKE sceAudioOutput2OutputBlocking(%i, %08x)", vol, dataPtr);
 	chans[0].leftVolume = vol;
 	chans[0].rightVolume = vol;
 	chans[0].sampleAddress = dataPtr;
-	RETURN(chans[0].sampleCount);
-  __AudioEnqueue(chans[0], 0, true);
+	RETURN(0);
+	u32 retval = __AudioEnqueue(chans[0], 0, true);
+	if (retval < 0)
+		RETURN(retval);
 }
 
-void sceAudioOutput2ChangeLength()
+u32 sceAudioOutput2ChangeLength(u32 sampleCount)
 {
-  ERROR_LOG(HLE,"UNIMPL sceAudioOutput2ChangeLength");
-	RETURN(0);
+	WARN_LOG(HLE,"sceAudioOutput2ChangeLength(%i)", sampleCount);
+	chans[0].sampleCount = sampleCount;
+	return 0;
 }
 
 u32 sceAudioOutput2GetRestSample()
@@ -323,11 +346,11 @@ u32 sceAudioOutput2GetRestSample()
 	return chans[0].sampleQueue.size() * 2;
 }
 
-void sceAudioOutput2Release()
+u32 sceAudioOutput2Release()
 {
-  WARN_LOG(HLE,"sceAudioOutput2Release()");
+	WARN_LOG(HLE,"sceAudioOutput2Release()");
 	chans[0].reserved = false;
-	RETURN(0);
+	return 0;
 }
 
 u32 sceAudioSetFrequency(u32 freq) {
@@ -343,20 +366,22 @@ u32 sceAudioSetFrequency(u32 freq) {
 
 const HLEFunction sceAudio[] = 
 {
-  {0x01562ba3, sceAudioOutput2Reserve, "sceAudioOutput2Reserve"},  // N+, Super Stardust Portable uses these
-  {0x2d53f36e, sceAudioOutput2OutputBlocking, "sceAudioOutput2OutputBlocking"},
-  {0x63f2889c, sceAudioOutput2ChangeLength, "sceAudioOutput2ChangeLength"},
+	// Newer simplified single channel audio output. Presumably for games that use Atrac3
+	// directly from Sas instead of playing it on a separate audio channel.
+  {0x01562ba3, WrapU_U<sceAudioOutput2Reserve>, "sceAudioOutput2Reserve"},
+  {0x2d53f36e, WrapV_UU<sceAudioOutput2OutputBlocking>, "sceAudioOutput2OutputBlocking"},
+  {0x63f2889c, WrapU_U<sceAudioOutput2ChangeLength>, "sceAudioOutput2ChangeLength"},
   {0x647cef33, WrapU_V<sceAudioOutput2GetRestSample>, "sceAudioOutput2GetRestSample"},	
-  {0x43196845, sceAudioOutput2Release, "sceAudioOutput2Release"},
+  {0x43196845, WrapU_V<sceAudioOutput2Release>, "sceAudioOutput2Release"},
 
-  {0x38553111, 0, "sceAudioSRCChReserve"},
-  {0x5C37C0AE, 0, "sceAudioSRCChRelease"},
-  {0x80F1F7E0, sceAudioInit, "sceAudioInit"},
-	{0x210567F7, sceAudioEnd, "sceAudioEnd"},
-	{0x927AC32B, 0, "sceAudioSetVolumeOffset"},
+	{0x80F1F7E0, WrapU_V<sceAudioInit>, "sceAudioInit"},
+	{0x210567F7, WrapU_V<sceAudioEnd>, "sceAudioEnd"},
+
   {0xA2BEAA6C, WrapU_U<sceAudioSetFrequency>, "sceAudioSetFrequency"},
-  {0xE0727056, 0, "sceAudioSRCOutputBlocking"},
-  {0x8c1009b2, WrapU_UUU<sceAudioOutput>, "sceAudioOutput"}, 
+	{0x927AC32B, 0, "sceAudioSetVolumeOffset"},
+
+	// The oldest and standard audio interface. Supports 8 channels, most games use 1-2.
+	{0x8c1009b2, WrapU_UUU<sceAudioOutput>, "sceAudioOutput"}, 
   {0x136CAF51, WrapV_UUU<sceAudioOutputBlocking>, "sceAudioOutputBlocking"}, 
   {0xE2D56B2D, WrapU_UUUU<sceAudioOutputPanned>, "sceAudioOutputPanned"}, 
   {0x13F592BC, WrapV_UUUU<sceAudioOutputPannedBlocking>, "sceAudioOutputPannedBlocking"}, //(u32, u32, u32, void *)Output sound, blocking 
@@ -367,8 +392,17 @@ const HLEFunction sceAudio[] =
 	{0xCB2E439E, WrapU_UU<sceAudioSetChannelDataLen>, "sceAudioSetChannelDataLen"}, //(u32, u32)
   {0x95FD0C2D, WrapU_UU<sceAudioChangeChannelConfig>, "sceAudioChangeChannelConfig"}, 
   {0xB7E1D8E7, WrapU_UUU<sceAudioChangeChannelVolume>, "sceAudioChangeChannelVolume"}, 
+
+	// I guess these are like the others but do sample rate conversion?
+	{0x38553111, 0, "sceAudioSRCChReserve"},
+	{0x5C37C0AE, 0, "sceAudioSRCChRelease"},
+	{0xE0727056, 0, "sceAudioSRCOutputBlocking"},
+
+	// Never seen these used
 	{0x41efade7, 0, "sceAudioOneshotOutput"},
 	{0xB61595C0, 0, "sceAudioLoopbackTest"},
+
+	// Microphone interface
 	{0x7de61688, 0, "sceAudioInputInit"},
 	{0xE926D3FB, 0, "sceAudioInputInitEx"},
 	{0x6d4bec68, 0, "sceAudioInput"},	 

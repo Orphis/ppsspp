@@ -22,6 +22,8 @@
 #include "sceKernelThread.h"
 #include "sceUtility.h"
 
+#include "sceCtrl.h"
+#include "../Util/PPGeDraw.h"
 
 enum SceUtilitySavedataType
 {
@@ -80,30 +82,28 @@ enum SceUtilitySavedataType
 #define SCE_UTILITY_STATUS_SHUTDOWN 	4
 
 
-/** title, savedataTitle, detail: parts of the unencrypted SFO
-data, it contains what the VSH and standard load screen shows */
-typedef struct PspUtilitySavedataSFOParam
+// title, savedataTitle, detail: parts of the unencrypted SFO
+// data, it contains what the VSH and standard load screen shows
+struct PspUtilitySavedataSFOParam
 {
 	char title[0x80];
 	char savedataTitle[0x80];
 	char detail[0x400];
 	unsigned char parentalLevel;
 	unsigned char unknown[3];
-} PspUtilitySavedataSFOParam;
+};
 
-typedef struct PspUtilitySavedataFileData {
+struct PspUtilitySavedataFileData {
 	void *buf;
-	SceSize bufSize;
-	SceSize size;	/* ??? - why are there two sizes? */
+	SceSize bufSize;  // Size of the buffer pointed to by buf
+	SceSize size;	    // Actual file size to write / was read
 	int unknown;
-} PspUtilitySavedataFileData;
+};
 
-/** Structure to hold the parameters for the ::sceUtilitySavedataInitStart function.
-*/
-typedef struct SceUtilitySavedataParam
+// Structure to hold the parameters for the sceUtilitySavedataInitStart function.
+struct SceUtilitySavedataParam
 {
-	/** Size of the structure */
-	SceSize size;
+	SceSize size; // Size of the structure
 
 	int language;
 
@@ -113,12 +113,10 @@ typedef struct SceUtilitySavedataParam
 	int result;
 	int unknown2[4];
 
-	/** mode: 0 to load, 1 to save */
-	int mode;
+	int mode;  // 0 to load, 1 to save
 	int bind;
 
-	/** unknown13 use 0x10 */
-	int overwriteMode;
+	int overwriteMode;   // use 0x10  ?
 
 	/** gameName: name used from the game for saves, equal for all saves */
 	char gameName[16];
@@ -131,7 +129,7 @@ typedef struct SceUtilitySavedataParam
 	void *dataBuf;
 	/** size of allocated space to dataBuf */
 	SceSize dataBufSize;
-	SceSize dataSize;
+	SceSize dataSize;  // Size of the actual save data
 
 	PspUtilitySavedataSFOParam sfoParam;
 
@@ -141,17 +139,20 @@ typedef struct SceUtilitySavedataParam
 	PspUtilitySavedataFileData snd0FileData;
 
 	unsigned char unknown17[4];
-} SceUtilitySavedataParam;
-
+};
 
 
 static u32 utilityDialogState = SCE_UTILITY_STATUS_SHUTDOWN;
 
 
+u32 messageDialogAddr;
+
 
 void __UtilityInit()
 {
+	messageDialogAddr = 0;
 	utilityDialogState = SCE_UTILITY_STATUS_SHUTDOWN;
+	// Creates a directory for save on the sdcard or MemStick directory
 }
 
 
@@ -192,11 +193,11 @@ u32 __UtilityGetStatus()
 }
 
 
-void sceUtilitySavedataInitStart()
+int sceUtilitySavedataInitStart(u32 paramAddr)
 {
-	SceUtilitySavedataParam *param = (SceUtilitySavedataParam*)Memory::GetPointer(PARAM(0));
+	SceUtilitySavedataParam *param = (SceUtilitySavedataParam*)Memory::GetPointer(paramAddr);
 
-	DEBUG_LOG(HLE,"sceUtilitySavedataInitStart(%08x)", PARAM(0));
+	DEBUG_LOG(HLE,"sceUtilitySavedataInitStart(%08x)", paramAddr);
 	DEBUG_LOG(HLE,"Mode: %i", param->mode);
 	if (param->mode == 0) //load
 	{
@@ -212,33 +213,35 @@ void sceUtilitySavedataInitStart()
 
 	__UtilityInitStart();
 
+
 	// Returning 0 here breaks Bust a Move Deluxe! But should be the right thing to do...
+	// At least Cohort Chess expects this to return 0 or it locks up..
 	// The fix is probably to fully implement sceUtility so that it actually works.
-	// RETURN(0);
+	return 0;
 }
 
-void sceUtilitySavedataShutdownStart()
+int sceUtilitySavedataShutdownStart()
 {
 	DEBUG_LOG(HLE,"sceUtilitySavedataShutdownStart()");
 	__UtilityShutdownStart();
-	RETURN(0);
+	return 0;
 }
 
-void sceUtilitySavedataGetStatus()
+int sceUtilitySavedataGetStatus()
 {
 	u32 retval = __UtilityGetStatus();
 	DEBUG_LOG(HLE,"%i=sceUtilitySavedataGetStatus()", retval);
-	RETURN(retval);
+	return retval;
 }
 
-void sceUtilitySavedataUpdate()
+int sceUtilitySavedataUpdate(u32 unknown)
 {
 	ERROR_LOG(HLE,"UNIMPL sceUtilitySavedataUpdate()");
 	//draw savedata UI here
 	__UtilityUpdate();
-	RETURN(0);
+	return 0;
 }
-	
+
 
 #define PSP_AV_MODULE_AVCODEC					 0
 #define PSP_AV_MODULE_SASCORE					 1
@@ -249,16 +252,18 @@ void sceUtilitySavedataUpdate()
 #define PSP_AV_MODULE_AAC							 6
 #define PSP_AV_MODULE_G729							7
 
-void sceUtilityLoadAvModule()
+//TODO: Shouldn't be void
+void sceUtilityLoadAvModule(u32 module)
 {
-	DEBUG_LOG(HLE,"sceUtilityLoadAvModule(%i)", PARAM(0));
+	DEBUG_LOG(HLE,"sceUtilityLoadAvModule(%i)", module);
 	RETURN(0);
 	__KernelReSchedule("utilityloadavmodule");
 }
 
-void sceUtilityLoadModule()
+//TODO: Shouldn't be void
+void sceUtilityLoadModule(u32 module)
 {
-	DEBUG_LOG(HLE,"sceUtilityLoadModule(%i)", PARAM(0));
+	DEBUG_LOG(HLE,"sceUtilityLoadModule(%i)", module);
 	RETURN(0);
 	__KernelReSchedule("utilityloadmodule");
 }
@@ -288,40 +293,126 @@ struct pspMessageDialog
 	u32 buttonPressed;	// 0=?, 1=Yes, 2=No, 3=Back
 };
 
-void sceUtilityMsgDialogInitStart()
+void sceUtilityMsgDialogInitStart(u32 structAddr)
 {
-	DEBUG_LOG(HLE,"FAKE sceUtilityMsgDialogInitStart(%i)", PARAM(0));
-	pspMessageDialog *dlg = (pspMessageDialog *)Memory::GetPointer(PARAM(0));
-	if (dlg->type == 0) // number
+	DEBUG_LOG(HLE,"sceUtilityMsgDialogInitStart(%i)", structAddr);
+	if (!Memory::IsValidAddress(structAddr))
 	{
-		INFO_LOG(HLE, "MsgDialog: %08x", dlg->errorNum);
+		RETURN(-1);
+		return;
+	}
+	messageDialogAddr = structAddr;
+	pspMessageDialog messageDialog;
+	Memory::ReadStruct(messageDialogAddr, &messageDialog);
+	if (messageDialog.type == 0) // number
+	{
+		INFO_LOG(HLE, "MsgDialog: %08x", messageDialog.errorNum);
 	}
 	else
 	{
-		INFO_LOG(HLE, "MsgDialog: %s", dlg->string);
+		INFO_LOG(HLE, "MsgDialog: %s", messageDialog.string);
 	}
 	__UtilityInitStart();
 }
 
-void sceUtilityMsgDialogShutdownStart()
+void sceUtilityMsgDialogShutdownStart(u32 unknown)
 {
-	DEBUG_LOG(HLE,"FAKE sceUtilityMsgDialogShutdownStart(%i)", PARAM(0));
+	DEBUG_LOG(HLE,"FAKE sceUtilityMsgDialogShutdownStart(%i)", unknown);
 	__UtilityShutdownStart();
 	RETURN(0);
 }
 
-void sceUtilityMsgDialogUpdate()
+void sceUtilityMsgDialogUpdate(int animSpeed)
 {
-	DEBUG_LOG(HLE,"FAKE sceUtilityMsgDialogUpdate(%i)", PARAM(0));
-	__UtilityUpdate();
+	DEBUG_LOG(HLE,"sceUtilityMsgDialogUpdate(%i)", animSpeed);
+
+	switch (utilityDialogState) {
+	case SCE_UTILITY_STATUS_FINISHED:
+		utilityDialogState = SCE_UTILITY_STATUS_SHUTDOWN;
+		break;
+	}
+
+	if (utilityDialogState != SCE_UTILITY_STATUS_RUNNING)
+	{
+		RETURN(0);
+		return;
+	}
+
+	if (!Memory::IsValidAddress(messageDialogAddr)) {
+		ERROR_LOG(HLE, "sceUtilityMsgDialogUpdate: Bad messagedialogaddr %08x", messageDialogAddr);
+		RETURN(-1);
+		return;
+	}
+
+	pspMessageDialog messageDialog;
+	Memory::ReadStruct(messageDialogAddr, &messageDialog);
+	const char *text;
+	if (messageDialog.type == 0) {
+		char temp[256];
+		sprintf(temp, "Error code: %08x", messageDialog.errorNum);
+		text = temp;
+	} else {
+		text = messageDialog.string;
+	}
+
+	PPGeBegin();
+
+	PPGeDraw4Patch(I_BUTTON, 0, 0, 480, 272, 0xcFFFFFFF);
+	PPGeDrawText(text, 50, 50, PPGE_ALIGN_LEFT, 0.5f, 0xFFFFFFFF);
+
+	static u32 lastButtons = 0;
+	u32 buttons = __CtrlPeekButtons();
+
+	if (messageDialog.options & 0x10)  // yesnobutton
+	{
+		PPGeDrawImage(I_CROSS, 80, 220, 0, 0xFFFFFFFF);
+		PPGeDrawText("Yes", 140, 220, PPGE_ALIGN_HCENTER, 1.0f, 0xFFFFFFFF);
+		PPGeDrawImage(I_CIRCLE, 200, 220, 0, 0xFFFFFFFF);
+		PPGeDrawText("No", 260, 220, PPGE_ALIGN_HCENTER, 1.0f, 0xFFFFFFFF);
+		PPGeDrawImage(I_TRIANGLE, 320, 220, 0, 0xcFFFFFFF);
+		PPGeDrawText("Back", 380, 220, PPGE_ALIGN_HCENTER, 1.0f, 0xcFFFFFFF);
+		if (!lastButtons) {
+			if (buttons & CTRL_TRIANGLE) {
+				messageDialog.buttonPressed = 3;  // back
+				utilityDialogState = SCE_UTILITY_STATUS_FINISHED;
+			} else if (buttons & CTRL_CROSS) {
+				messageDialog.buttonPressed = 1;
+				utilityDialogState = SCE_UTILITY_STATUS_FINISHED;
+			} else if (buttons & CTRL_CIRCLE) {
+				messageDialog.buttonPressed = 2;
+				utilityDialogState = SCE_UTILITY_STATUS_FINISHED;
+			}
+		}
+	}
+	else
+	{
+		PPGeDrawImage(I_CROSS, 150, 220, 0, 0xFFFFFFFF);
+		PPGeDrawText("OK", 480/2, 220, PPGE_ALIGN_HCENTER, 1.0f, 0xFFFFFFFF);
+		if (!lastButtons) {
+			if (buttons & (CTRL_CROSS | CTRL_CIRCLE)) {  // accept both
+				messageDialog.buttonPressed = 1;
+				utilityDialogState = SCE_UTILITY_STATUS_FINISHED;
+			}
+		}
+	}
+
+	lastButtons = buttons;
+
+	Memory::WriteStruct(messageDialogAddr, &messageDialog);
+
+	PPGeEnd();
+
 	RETURN(0);
 }
 
-void sceUtilityMsgDialogGetStatus()
+u32 sceUtilityMsgDialogGetStatus()
 {
 	DEBUG_LOG(HLE,"sceUtilityMsgDialogGetStatus()");
-	RETURN(__UtilityGetStatus());
+	return __UtilityGetStatus();
 }
+
+
+// On screen keyboard
 
 void sceUtilityOskInitStart()
 {
@@ -386,56 +477,56 @@ void sceUtilityNetconfGetStatus()
 #define PSP_SYSTEMPARAM_ID_INT_DAYLIGHTSAVINGS	7
 #define PSP_SYSTEMPARAM_ID_INT_LANGUAGE		8
 /**
- * #9 seems to be Region or maybe X/O button swap.
- * It doesn't exist on JAP v1.0
- * is 1 on NA v1.5s
- * is 0 on JAP v1.5s
- * is read-only
- */
+* #9 seems to be Region or maybe X/O button swap.
+* It doesn't exist on JAP v1.0
+* is 1 on NA v1.5s
+* is 0 on JAP v1.5s
+* is read-only
+*/
 #define PSP_SYSTEMPARAM_ID_INT_UNKNOWN		9
 
 /**
- * Return values for the SystemParam functions
- */
+* Return values for the SystemParam functions
+*/
 #define PSP_SYSTEMPARAM_RETVAL_OK	0
 #define PSP_SYSTEMPARAM_RETVAL_FAIL	0x80110103
 
 /**
- * Valid values for PSP_SYSTEMPARAM_ID_INT_ADHOC_CHANNEL
- */
+* Valid values for PSP_SYSTEMPARAM_ID_INT_ADHOC_CHANNEL
+*/
 #define PSP_SYSTEMPARAM_ADHOC_CHANNEL_AUTOMATIC 0
 #define PSP_SYSTEMPARAM_ADHOC_CHANNEL_1		1
 #define PSP_SYSTEMPARAM_ADHOC_CHANNEL_6		6
 #define PSP_SYSTEMPARAM_ADHOC_CHANNEL_11	11
 
 /**
- * Valid values for PSP_SYSTEMPARAM_ID_INT_WLAN_POWERSAVE
- */
+* Valid values for PSP_SYSTEMPARAM_ID_INT_WLAN_POWERSAVE
+*/
 #define PSP_SYSTEMPARAM_WLAN_POWERSAVE_OFF	0
 #define PSP_SYSTEMPARAM_WLAN_POWERSAVE_ON	1
 
 /**
- * Valid values for PSP_SYSTEMPARAM_ID_INT_DATE_FORMAT
- */
+* Valid values for PSP_SYSTEMPARAM_ID_INT_DATE_FORMAT
+*/
 #define PSP_SYSTEMPARAM_DATE_FORMAT_YYYYMMDD	0
 #define PSP_SYSTEMPARAM_DATE_FORMAT_MMDDYYYY	1
 #define PSP_SYSTEMPARAM_DATE_FORMAT_DDMMYYYY	2
 
 /**
- * Valid values for PSP_SYSTEMPARAM_ID_INT_TIME_FORMAT
- */
+* Valid values for PSP_SYSTEMPARAM_ID_INT_TIME_FORMAT
+*/
 #define PSP_SYSTEMPARAM_TIME_FORMAT_24HR	0
 #define PSP_SYSTEMPARAM_TIME_FORMAT_12HR	1
 
 /**
- * Valid values for PSP_SYSTEMPARAM_ID_INT_DAYLIGHTSAVINGS
- */
+* Valid values for PSP_SYSTEMPARAM_ID_INT_DAYLIGHTSAVINGS
+*/
 #define PSP_SYSTEMPARAM_DAYLIGHTSAVINGS_STD	0
 #define PSP_SYSTEMPARAM_DAYLIGHTSAVINGS_SAVING	1
 
 /**
- * Valid values for PSP_SYSTEMPARAM_ID_INT_LANGUAGE
- */
+* Valid values for PSP_SYSTEMPARAM_ID_INT_LANGUAGE
+*/
 #define PSP_SYSTEMPARAM_LANGUAGE_JAPANESE	0
 #define PSP_SYSTEMPARAM_LANGUAGE_ENGLISH	1
 #define PSP_SYSTEMPARAM_LANGUAGE_FRENCH		2
@@ -454,12 +545,12 @@ u32 sceUtilityGetSystemParamString(u32 id, u32 destaddr, u32 unknownparam)
 	//DEBUG_LOG(HLE,"sceUtilityGetSystemParamString(%i, %08x, %i)", id,destaddr,unknownparam);
 	char *buf = (char *)Memory::GetPointer(destaddr);
 	switch (id) {
-		case PSP_SYSTEMPARAM_ID_STRING_NICKNAME:
-			strcpy(buf, "shadow");
-			break;
+	case PSP_SYSTEMPARAM_ID_STRING_NICKNAME:
+		strcpy(buf, "shadow");
+		break;
 
-		default:
-			return PSP_SYSTEMPARAM_RETVAL_FAIL;
+	default:
+		return PSP_SYSTEMPARAM_RETVAL_FAIL;
 	}
 
 	return 0;
@@ -468,35 +559,37 @@ u32 sceUtilityGetSystemParamString(u32 id, u32 destaddr, u32 unknownparam)
 u32 sceUtilityGetSystemParamInt(u32 id, u32 destaddr)
 {
 	DEBUG_LOG(HLE,"sceUtilityGetSystemParamInt(%i, %08x)", id,destaddr);
-	u32 *outPtr = (u32*)Memory::GetPointer(destaddr);
+	u32 param = 0;
 	switch (id) {
-		case PSP_SYSTEMPARAM_ID_INT_ADHOC_CHANNEL:
-			*outPtr = PSP_SYSTEMPARAM_ADHOC_CHANNEL_AUTOMATIC;
-			break;
-		case PSP_SYSTEMPARAM_ID_INT_WLAN_POWERSAVE:
-			*outPtr = PSP_SYSTEMPARAM_WLAN_POWERSAVE_OFF;
-			break;
-		case PSP_SYSTEMPARAM_ID_INT_DATE_FORMAT:
-			*outPtr = PSP_SYSTEMPARAM_DATE_FORMAT_DDMMYYYY;
-			break;
-		case PSP_SYSTEMPARAM_ID_INT_TIME_FORMAT:
-			*outPtr = PSP_SYSTEMPARAM_TIME_FORMAT_24HR;
-			break;
-		case PSP_SYSTEMPARAM_ID_INT_TIMEZONE:
-			*outPtr = 60;
-			break;
-		case PSP_SYSTEMPARAM_ID_INT_DAYLIGHTSAVINGS:
-			*outPtr = PSP_SYSTEMPARAM_TIME_FORMAT_24HR;
-			break;
-		case PSP_SYSTEMPARAM_ID_INT_LANGUAGE:
-			*outPtr = PSP_SYSTEMPARAM_LANGUAGE_ENGLISH;
-			break;
-		case PSP_SYSTEMPARAM_ID_INT_UNKNOWN:
-			*outPtr = 1;
-			break;
-		default:
-			return PSP_SYSTEMPARAM_RETVAL_FAIL;
+	case PSP_SYSTEMPARAM_ID_INT_ADHOC_CHANNEL:
+		param = PSP_SYSTEMPARAM_ADHOC_CHANNEL_AUTOMATIC;
+		break;
+	case PSP_SYSTEMPARAM_ID_INT_WLAN_POWERSAVE:
+		param = PSP_SYSTEMPARAM_WLAN_POWERSAVE_OFF;
+		break;
+	case PSP_SYSTEMPARAM_ID_INT_DATE_FORMAT:
+		param = PSP_SYSTEMPARAM_DATE_FORMAT_DDMMYYYY;
+		break;
+	case PSP_SYSTEMPARAM_ID_INT_TIME_FORMAT:
+		param = PSP_SYSTEMPARAM_TIME_FORMAT_24HR;
+		break;
+	case PSP_SYSTEMPARAM_ID_INT_TIMEZONE:
+		param = 60;
+		break;
+	case PSP_SYSTEMPARAM_ID_INT_DAYLIGHTSAVINGS:
+		param = PSP_SYSTEMPARAM_TIME_FORMAT_24HR;
+		break;
+	case PSP_SYSTEMPARAM_ID_INT_LANGUAGE:
+		param = PSP_SYSTEMPARAM_LANGUAGE_ENGLISH;
+		break;
+	case PSP_SYSTEMPARAM_ID_INT_UNKNOWN:
+		param = 1;
+		break;
+	default:
+		return PSP_SYSTEMPARAM_RETVAL_FAIL;
 	}
+
+	Memory::Write_U32(param, destaddr);
 
 	return 0;
 }
@@ -515,15 +608,15 @@ const HLEFunction sceUtility[] =
 	{0x91e70e35, sceUtilityNetconfUpdate, "sceUtilityNetconfUpdate"},
 	{0x6332aa39, sceUtilityNetconfGetStatus, "sceUtilityNetconfGetStatus"},
 
-	{0x67af3428, sceUtilityMsgDialogShutdownStart, "sceUtilityMsgDialogShutdownStart"},	
-	{0x2ad8e239, sceUtilityMsgDialogInitStart, "sceUtilityMsgDialogInitStart"},			
-	{0x95fc253b, sceUtilityMsgDialogUpdate, "sceUtilityMsgDialogUpdate"},				 
-	{0x9a1c91d7, sceUtilityMsgDialogGetStatus, "sceUtilityMsgDialogGetStatus"},			
+	{0x67af3428, &WrapV_U<sceUtilityMsgDialogShutdownStart>, "sceUtilityMsgDialogShutdownStart"},	
+	{0x2ad8e239, &WrapV_U<sceUtilityMsgDialogInitStart>, "sceUtilityMsgDialogInitStart"},			
+	{0x95fc253b, &WrapV_I<sceUtilityMsgDialogUpdate>, "sceUtilityMsgDialogUpdate"},				 
+	{0x9a1c91d7, &WrapU_V<sceUtilityMsgDialogGetStatus>, "sceUtilityMsgDialogGetStatus"},			
 
-	{0x9790b33c, sceUtilitySavedataShutdownStart, "sceUtilitySavedataShutdownStart"},	 
-	{0x50c4cd57, sceUtilitySavedataInitStart, "sceUtilitySavedataInitStart"},			 
-	{0xd4b95ffb, sceUtilitySavedataUpdate, "sceUtilitySavedataUpdate"},					
-	{0x8874dbe0, sceUtilitySavedataGetStatus, "sceUtilitySavedataGetStatus"},
+	{0x9790b33c, &WrapI_V<sceUtilitySavedataShutdownStart>, "sceUtilitySavedataShutdownStart"},	 
+	{0x50c4cd57, &WrapI_U<sceUtilitySavedataInitStart>, "sceUtilitySavedataInitStart"},			 
+	{0xd4b95ffb, &WrapI_U<sceUtilitySavedataUpdate>, "sceUtilitySavedataUpdate"},					
+	{0x8874dbe0, &WrapI_V<sceUtilitySavedataGetStatus>, "sceUtilitySavedataGetStatus"},
 
 	{0x3dfaeba9, sceUtilityOskShutdownStart, "sceUtilityOskShutdownStart"}, 
 	{0xf6269b82, sceUtilityOskInitStart, "sceUtilityOskInitStart"}, 
@@ -550,9 +643,9 @@ const HLEFunction sceUtility[] =
 	{0xcdc3aa41, 0, "sceUtilityHtmlViewerInitStart"}, 
 	{0xf5ce1134, 0, "sceUtilityHtmlViewerShutdownStart"}, 
 	{0x05afb9e4, 0, "sceUtilityHtmlViewerUpdate"}, 
-	{0xc629af26, sceUtilityLoadAvModule, "sceUtilityLoadAvModule"}, 
+	{0xc629af26, &WrapV_U<sceUtilityLoadAvModule>, "sceUtilityLoadAvModule"}, 
 	{0xf7d8d092, 0, "sceUtilityUnloadAvModule"},
-	{0x2a2b3de0, sceUtilityLoadModule, "sceUtilityLoadModule"},
+	{0x2a2b3de0, &WrapV_U<sceUtilityLoadModule>, "sceUtilityLoadModule"},
 	{0xe49bfe92, 0, "sceUtilityUnloadModule"},
 	{0x0251B134, 0, "sceUtilityScreenshotInitStart"},
 	{0xF9E0008C, 0, "sceUtilityScreenshotShutdownStart"},
@@ -564,10 +657,15 @@ const HLEFunction sceUtility[] =
 	{0xF64910F0, 0, "sceUtilityUnloadUsbModule"},
 
 	{0x24AC31EB, 0, "sceUtilityGamedataInstallInitStart"},
-  {0x32E32DCB, 0, "sceUtilityGamedataInstallShutdownStart"},
-  {0x4AECD179, 0, "sceUtilityGamedataInstallUpdate"},
-  {0xB57E95D9, 0, "sceUtilityGamedataInstallGetStatus"},
+	{0x32E32DCB, 0, "sceUtilityGamedataInstallShutdownStart"},
+	{0x4AECD179, 0, "sceUtilityGamedataInstallUpdate"},
+	{0xB57E95D9, 0, "sceUtilityGamedataInstallGetStatus"},
 	{0x180F7B62, 0, "sceUtilityGamedataInstallAbortFunction"},
+
+	{0x16D02AF0, 0, "sceUtilityNpSigninInitStart"},
+	{0xE19C97D6, 0, "sceUtilityNpSigninShutdownStart"},
+	{0xF3FBC572, 0, "sceUtilityNpSigninUpdate"},
+	{0x86ABDB1B, 0, "sceUtilityNpSigninGetStatus"},
 };
 
 void Register_sceUtility()

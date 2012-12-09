@@ -116,12 +116,25 @@ PSPFileInfo MetaFileSystem::GetFileInfo(std::string filename)
 	}
 }
 
+//TODO: Not sure where this should live. Seems a bit wrong putting it in common
+bool stringEndsWith (std::string const &fullString, std::string const &ending)
+{
+    if (fullString.length() >= ending.length()) {
+        return (0 == fullString.compare (fullString.length() - ending.length(), ending.length(), ending));
+    } else {
+        return false;
+    }
+}
+
 std::vector<PSPFileInfo> MetaFileSystem::GetDirListing(std::string path)
 {
 	std::string of;
 	if (path.find(':') == std::string::npos)
 	{
-		path = currentDirectory + "/" + path;
+		if (!stringEndsWith(currentDirectory, "/"))
+		{
+			path = currentDirectory + "/" + path;
+		}
 		DEBUG_LOG(HLE,"GetFileInfo: Expanded path to %s", path.c_str());
 	}
 	IFileSystem *system;
@@ -157,6 +170,21 @@ bool MetaFileSystem::RmDir(const std::string &dirname)
 	if (MapFilePath(dirname, of, &system))
 	{
 		return system->RmDir(of);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool MetaFileSystem::RenameFile(const std::string &from, const std::string &to)
+{
+	std::string of;
+	std::string rf;
+	IFileSystem *system;
+	if (MapFilePath(from, of, &system) && MapFilePath(to, rf, &system))
+	{
+		return system->RenameFile(of, rf);
 	}
 	else
 	{

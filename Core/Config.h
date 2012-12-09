@@ -39,14 +39,18 @@ public:
 	bool bFirstRun;
 	bool bAutoRun;
 	bool bSpeedLimit;
-	bool bJIT;
 	bool bConfirmOnQuit;
 	bool bIgnoreBadMemAccess;
 	bool bDisplayFramebuffer;
+	bool bBufferedRendering;
 
+	bool bShowTouchControls;
+	bool bShowDebuggerOnLoad;
 	bool bShowAnalogStick;
 	bool bShowFPSCounter;
+	bool bShowDebugStats;
 	int iWindowZoom;  // for Windows
+	int iCpuCore;
 
 	std::string currentDirectory;
 
@@ -55,7 +59,6 @@ public:
 private:
 	std::string iniFilename_;
 };
-
 
 extern SState g_State;
 extern CConfig g_Config;

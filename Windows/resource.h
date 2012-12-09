@@ -238,13 +238,18 @@
 #define ID_OPTIONS_SCREEN3X             40115
 #define ID_OPTIONS_SCREEN4X             40116
 #define ID_OPTIONS_SCREEN2X             40117
+#define ID_OPTIONS_BUFFEREDRENDERING    40118
+#define ID_EMULATION_FAST               40119
+#define ID_EMULATION_FASTINTERPRETER    40120
+#define ID_CPU_FASTINTERPRETER          40121
+#define ID_OPTIONS_SHOWDEBUGSTATISTICS  40122
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        232
-#define _APS_NEXT_COMMAND_VALUE         40118
+#define _APS_NEXT_COMMAND_VALUE         40123
 #define _APS_NEXT_CONTROL_VALUE         1162
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

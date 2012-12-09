@@ -47,7 +47,12 @@ u32 sceWlanGetEtherAddr(u32 addrAddr)
 
 u32 sceWlanDevIsPowerOn()
 {
-	DEBUG_LOG(HLE, "0=sceWlanDevIsPowerOn()");
+	DEBUG_LOG(HLE, "UNTESTED 0=sceWlanDevIsPowerOn()");
+	return 0;
+}
+
+u32 sceWlanGetSwitchState() {
+	DEBUG_LOG(HLE, "UNTESTED sceWlanGetSwitchState()");
 	return 0;
 }
 
@@ -135,6 +140,7 @@ const HLEFunction sceNetResolver[] =
 	{0x94523e09, 0, "sceNetResolverDelete"},
 	{0xf3370e61, 0, "sceNetResolverInit"},
 	{0x808F6063, 0, "sceNetResolverStop"},
+	{0x6138194A, 0, "sceNetResolverTermFunction"},
 };					 
 
 const HLEFunction sceNetInet[] = 
@@ -161,9 +167,11 @@ const HLEFunction sceNetInet[] =
 	{0xa9ed66b9, 0, "sceNetInetTerm"},
 	{0xE30B8C19, 0, "sceNetInetInetPton"},
 	{0xE247B6D6, 0, "sceNetInetGetpeername"},
-	{0x162e6fd5 ,0, "sceNetInetGetsockname"},
-	{0x4a114c7c ,0, "sceNetInetGetsockopt"}, 
-	{0xfaabb1dd ,0, "sceNetInetPoll"},
+	{0x162e6fd5, 0, "sceNetInetGetsockname"},
+	{0x4a114c7c, 0, "sceNetInetGetsockopt"}, 
+	{0xfaabb1dd, 0, "sceNetInetPoll"},
+	{0x1BDF5D13, 0, "sceNetInetInetAton"},
+	{0x80A21ABD, 0, "sceNetInetSocketAbort"},
 };
 const HLEFunction sceNetApctl[] = 
 {
@@ -179,7 +187,7 @@ const HLEFunction sceNetApctl[] =
 
 const HLEFunction sceWlanDrv[] =
 {
-	{0xd7763699, 0, "sceWlanGetSwitchState"},
+	{0xd7763699, WrapU_V<sceWlanGetSwitchState>, "sceWlanGetSwitchState"},
 	{0x0c622081, WrapU_U<sceWlanGetEtherAddr>, "sceWlanGetEtherAddr"},
 	{0x93440B11, WrapU_V<sceWlanDevIsPowerOn>, "sceWlanDevIsPowerOn"},
 };

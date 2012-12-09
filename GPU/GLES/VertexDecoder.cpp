@@ -15,25 +15,21 @@
 // Official git repository and contact information can be found at
 // https://github.com/hrydgard/ppsspp and http://www.ppsspp.org/.
 
-#if defined(ANDROID) || defined(BLACKBERRY)
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
-#else
-#include <GL/glew.h>
-#if defined(__APPLE__)
-#include <OpenGL/gl.h>
-#else
-#include <GL/gl.h>
-#endif
-#endif
-
 #include "math/lin/matrix4x4.h"
 
 #include "../../Core/MemMap.h"
 #include "../ge_constants.h"
-#include "../GPUState.h"
 
 #include "VertexDecoder.h"
+
+void PrintDecodedVertex(const DecodedVertex &vtx, u32 vtype)
+{
+	if (vtype & GE_VTYPE_NRM_MASK) printf("N: %f %f %f\n", vtx.normal[0], vtx.normal[1], vtx.normal[2]);
+	if (vtype & GE_VTYPE_TC_MASK) printf("TC: %f %f\n", vtx.uv[0], vtx.uv[1]);
+	if (vtype & GE_VTYPE_COL_MASK) printf("C: %02x %02x %02x %02x\n", vtx.color[0], vtx.color[1], vtx.color[2], vtx.color[3]);
+	if (vtype & GE_VTYPE_WEIGHT_MASK) printf("W: TODO\n");
+	printf("P: %f %f %f\n", vtx.pos[0], vtx.pos[1], vtx.pos[2]);
+}
 
 const int tcsize[4] = {0,2,4,8}, tcalign[4] = {0,1,2,4};
 const int colsize[8] = {0,0,0,0,2,2,2,4}, colalign[8] = {0,0,0,0,2,2,2,4};
@@ -43,7 +39,7 @@ const int wtsize[4] = {0,1,2,4}, wtalign[4] = {0,1,2,4};
 
 inline int align(int n, int align)
 {
-	return (n+(align-1)) & ~(align-1);
+	return (n + (align - 1)) & ~(align - 1);
 }
 
 void VertexDecoder::SetVertexType(u32 fmt)
@@ -53,7 +49,7 @@ void VertexDecoder::SetVertexType(u32 fmt)
 
 	int biggest = 0;
 	size = 0;
-	
+
 	tc				 = fmt & 0x3;
 	col				= (fmt >> 2) & 0x7;
 	nrm				= (fmt >> 5) & 0x3;
@@ -64,7 +60,7 @@ void VertexDecoder::SetVertexType(u32 fmt)
 	nweights	 = ((fmt >> 14) & 0x7)+1;
 
 	DEBUG_LOG(G3D,"VTYPE: THRU=%i TC=%i COL=%i POS=%i NRM=%i WT=%i NW=%i IDX=%i MC=%i", (int)throughmode, tc,col,pos,nrm,weighttype,nweights,idx,morphcount);
-	
+
 	if (weighttype)
 	{
 		//size = align(size, wtalign[weighttype]);	unnecessary
@@ -121,8 +117,9 @@ void VertexDecoder::SetVertexType(u32 fmt)
 
 void VertexDecoder::DecodeVerts(DecodedVertex *decoded, const void *verts, const void *inds, int prim, int count, int *indexLowerBound, int *indexUpperBound) const
 {
+	// TODO: Remove
 	if (morphcount == 1)
-		gstate.morphWeights[0] = 1.0f;
+		gstate_c.morphWeights[0] = 1.0f;
 
 	char *ptr = (char *)verts;
 
@@ -168,7 +165,7 @@ void VertexDecoder::DecodeVerts(DecodedVertex *decoded, const void *verts, const
 			{
 				const u8 *wdata = (const u8*)(ptr);
 				for (int j = 0; j < nweights; j++)
-					wt[j] = (float)wdata[j] / 255.0f;
+					wt[j] = (float)wdata[j] / 128.0f;
 			}
 			break;
 
@@ -176,7 +173,7 @@ void VertexDecoder::DecodeVerts(DecodedVertex *decoded, const void *verts, const
 			{
 				const u16 *wdata = (const u16*)(ptr);
 				for (int j = 0; j < nweights; j++)
-					wt[j] = (float)wdata[j] / 65535.0f;
+					wt[j] = (float)wdata[j] / 32768.0f;
 			}
 			break;
 
@@ -202,7 +199,7 @@ void VertexDecoder::DecodeVerts(DecodedVertex *decoded, const void *verts, const
 			{
 				const u8 *uvdata = (const u8*)(ptr + tcoff);
 				for (int j = 0; j < 2; j++)
-					uv[j] = (float)uvdata[j]/255.0f;
+					uv[j] = (float)uvdata[j] / 128.0f;
 				break;
 			}
 
@@ -211,8 +208,8 @@ void VertexDecoder::DecodeVerts(DecodedVertex *decoded, const void *verts, const
 				const u16 *uvdata = (const u16*)(ptr + tcoff);
 				if (throughmode)
 				{
-					uv[0] = (float)uvdata[0] / (float)(gstate.curTextureWidth);
-					uv[1] = (float)uvdata[1] / (float)(gstate.curTextureHeight);
+					uv[0] = (float)uvdata[0] / (float)(gstate_c.curTextureWidth);
+					uv[1] = (float)uvdata[1] / (float)(gstate_c.curTextureHeight);
 				}
 				else
 				{
@@ -225,8 +222,13 @@ void VertexDecoder::DecodeVerts(DecodedVertex *decoded, const void *verts, const
 		case GE_VTYPE_TC_FLOAT:
 			{
 				const float *uvdata = (const float*)(ptr + tcoff);
-				for (int j = 0; j < 2; j++)
-					uv[j] = uvdata[j];
+				if (throughmode) {
+					uv[0] = uvdata[0] / (float)(gstate_c.curTextureWidth);
+					uv[1] = uvdata[1] / (float)(gstate_c.curTextureHeight);
+				} else {
+					uv[0] = uvdata[0];
+					uv[1] = uvdata[1];
+				}
 			}
 			break;
 		}
@@ -273,7 +275,10 @@ void VertexDecoder::DecodeVerts(DecodedVertex *decoded, const void *verts, const
 			break;
 
 		default:
-			c[0]=255; c[1]=255; c[2]=255; c[3]=255;
+			c[0] = 255;
+			c[1] = 255;
+			c[2] = 255;
+			c[3] = 255;
 			break;
 		}
 
@@ -281,14 +286,18 @@ void VertexDecoder::DecodeVerts(DecodedVertex *decoded, const void *verts, const
 		memset(normal, 0, sizeof(float)*3);
 		for (int n = 0; n < morphcount; n++)
 		{
-			float multiplier = gstate.morphWeights[n];
+			float multiplier = gstate_c.morphWeights[n];
 			if (gstate.reversenormals & 0xFFFFFF) {
 				multiplier = -multiplier;
 			}
 			switch (nrm)
 			{
-			case 0:
-				//no normals
+			case GE_VTYPE_NRM_8BIT:
+				{
+					const s8 *sv = (const s8*)(ptr + onesize_*n + nrmoff);
+					for (int j = 0; j < 3; j++)
+						normal[j] += (sv[j]/127.0f) * multiplier;
+				}
 				break;
 
 			case GE_VTYPE_NRM_FLOAT >> 5:
@@ -305,10 +314,6 @@ void VertexDecoder::DecodeVerts(DecodedVertex *decoded, const void *verts, const
 					for (int j = 0; j < 3; j++)
 						normal[j] += (sv[j]/32767.0f) * multiplier;
 				}
-				break;
-
-			default:
-				DEBUG_LOG(G3D,"Unknown normal format %i",nrm);
 				break;
 			}
 		}
@@ -358,7 +363,7 @@ void VertexDecoder::DecodeVerts(DecodedVertex *decoded, const void *verts, const
 					{
 						const float *fv = (const float*)(ptr + onesize_*n + posoff);
 						for (int j = 0; j < 3; j++)
-							v[j] += fv[j] * gstate.morphWeights[n];
+							v[j] += fv[j] * gstate_c.morphWeights[n];
 					}
 					break;
 
@@ -368,7 +373,7 @@ void VertexDecoder::DecodeVerts(DecodedVertex *decoded, const void *verts, const
 						if (throughmode) multiplier = 1.0f;
 						const short *sv = (const short*)(ptr + onesize_*n + posoff);
 						for (int j = 0; j < 3; j++)
-							v[j] += (sv[j] * multiplier) * gstate.morphWeights[n];
+							v[j] += (sv[j] * multiplier) * gstate_c.morphWeights[n];
 					}
 					break;
 
@@ -376,7 +381,7 @@ void VertexDecoder::DecodeVerts(DecodedVertex *decoded, const void *verts, const
 					{
 						const s8 *sv = (const s8*)(ptr + onesize_*n + posoff);
 						for (int j = 0; j < 3; j++)
-							v[j] += (sv[j] / 127.f) * gstate.morphWeights[n];
+							v[j] += (sv[j] / 127.f) * gstate_c.morphWeights[n];
 					}
 					break;
 

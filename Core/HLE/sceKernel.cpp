@@ -29,6 +29,7 @@
 
 #include "__sceAudio.h"
 #include "sceAudio.h"
+#include "sceCtrl.h"
 #include "sceDisplay.h"
 #include "sceGe.h"
 #include "sceIo.h"
@@ -48,6 +49,9 @@
 #include "scePower.h"
 #include "sceUtility.h"
 #include "sceUmd.h"
+#include "sceSsl.h"
+
+#include "../Util/PPGeDraw.h"
 
 extern MetaFileSystem pspFileSystem;
 
@@ -78,6 +82,11 @@ void __KernelInit()
 	__PowerInit();
 	__UtilityInit();
 	__UmdInit();
+	__CtrlInit();
+	__SslInit();
+	
+	// "Internal" PSP libraries
+	__PPGeInit();
 
 	kernelRunning = true;
 	INFO_LOG(HLE, "Kernel initialized.");
@@ -94,6 +103,8 @@ void __KernelShutdown()
 	INFO_LOG(HLE, "Shutting down kernel - %i kernel objects alive", kernelObjects.GetCount());
 	kernelObjects.Clear();
 
+	__PPGeShutdown();
+	
 	__GeShutdown();
 	__AudioShutdown();
 	__IoShutdown();
@@ -144,12 +155,6 @@ void sceKernelDevkitVersion()
 	RETURN(1);
 }
 
-
-//////////////////////////////////////////////////////////////////////////
-// DEBUG
-//////////////////////////////////////////////////////////////////////////
-
-
 void sceKernelRegisterKprintfHandler()
 {
 	ERROR_LOG(HLE,"UNIMPL sceKernelRegisterKprintfHandler()");
@@ -174,21 +179,19 @@ void sceKernelGetGPI()
 	RETURN(0);
 }
 
+// Don't even log these, they're spammy and we probably won't
+// need to emulate them.
 void sceKernelDcacheWritebackAll()
 {
-	//RETURN(0);
 }
 void sceKernelDcacheWritebackRange()
 {
-	//RETURN(0);
 }
 void sceKernelDcacheWritebackInvalidateRange()
 {
-	//RETURN(0);
 }
 void sceKernelDcacheWritebackInvalidateAll()
 {
-	// RETURN(0)
 }
 
 KernelObjectPool kernelObjects;
@@ -198,13 +201,15 @@ KernelObjectPool::KernelObjectPool()
 	memset(occupied, 0, sizeof(bool)*maxCount);
 }
 
-SceUID KernelObjectPool::Create(KernelObject *obj)
+SceUID KernelObjectPool::Create(KernelObject *obj, int rangeBottom, int rangeTop)
 {
-	for (int i=0; i<maxCount; i++)
+	if (rangeTop > maxCount)
+		rangeTop = maxCount;
+	for (int i = rangeBottom; i < rangeTop; i++)
 	{
 		if (!occupied[i])
 		{
-			occupied[i]=true;
+			occupied[i] = true;
 			pool[i] = obj;
 			pool[i]->uid = i + handleOffset;
 			return i + handleOffset;
@@ -336,14 +341,14 @@ const HLEFunction ThreadManForUser[] =
 	{0x4E3A1105,&WrapV_IIU<sceKernelWaitSema>,            "sceKernelWaitSema"},
 	{0x6d212bac,&WrapV_IIU<sceKernelWaitSemaCB>,          "sceKernelWaitSemaCB"},
 
-	{0x60107536,0,"sceKernelDeleteLwMutex"},
-	{0x19CFF145,0,"sceKernelCreateLwMutex"},
-	{0xf8170fbe,&WrapU_U<sceKernelDeleteMutex>,"sceKernelDeleteMutex"},
-	{0xB011B11F,&WrapU_UUU<sceKernelLockMutex>,"sceKernelLockMutex"},
-	{0x5bf4dd27,&WrapU_UUU<sceKernelLockMutexCB>,"sceKernelLockMutexCB"},
-	{0x6b30100f,&WrapU_UU<sceKernelUnlockMutex>,"sceKernelUnlockMutex"},
-	{0xb7d098c6,&WrapU_CUU<sceKernelCreateMutex>,"sceKernelCreateMutex"},
-	{0x0DDCD2C9, 0, "sceKernelTryLockMutex"},
+	{0x60107536,&WrapV_U<sceKernelDeleteLwMutex>,         "sceKernelDeleteLwMutex"},
+	{0x19CFF145,&WrapV_UCUIU<sceKernelCreateLwMutex>,     "sceKernelCreateLwMutex"},
+	{0xf8170fbe,&WrapV_I<sceKernelDeleteMutex>,           "sceKernelDeleteMutex"},
+	{0xB011B11F,&WrapV_IIU<sceKernelLockMutex>,           "sceKernelLockMutex"},
+	{0x5bf4dd27,&WrapV_IIU<sceKernelLockMutexCB>,         "sceKernelLockMutexCB"},
+	{0x6b30100f,&WrapV_II<sceKernelUnlockMutex>,          "sceKernelUnlockMutex"},
+	{0xb7d098c6,&WrapV_CUIU<sceKernelCreateMutex>,        "sceKernelCreateMutex"},
+	{0x0DDCD2C9,&WrapV_II<sceKernelTryLockMutex>,         "sceKernelTryLockMutex"},
 	// NOTE: LockLwMutex and UnlockLwMutex are in Kernel_Library, see sceKernelInterrupt.cpp.
 
 	{0xFCCFAD26,sceKernelCancelWakeupThread,"sceKernelCancelWakeupThread"},
@@ -370,9 +375,9 @@ const HLEFunction ThreadManForUser[] =
 	{0x912354a7,sceKernelRotateThreadReadyQueue,"sceKernelRotateThreadReadyQueue"},
 	{0x9ACE131E,sceKernelSleepThread,"sceKernelSleepThread"},
 	{0x82826f70,sceKernelSleepThreadCB,"sceKernelSleepThreadCB"},
-	{0xF475845D,&WrapU_V<sceKernelStartThread>,"sceKernelStartThread"},
+	{0xF475845D,&WrapV_IUU<sceKernelStartThread>,"sceKernelStartThread"},
 	{0x9944f31f,sceKernelSuspendThread,"sceKernelSuspendThread"},
-	{0x616403ba,0,"sceKernelTerminateThread"},
+	{0x616403ba,WrapV_U<sceKernelTerminateThread>,"sceKernelTerminateThread"},
 	{0x383f7bcc,sceKernelTerminateDeleteThread,"sceKernelTerminateDeleteThread"},
 	{0x840E8133,sceKernelWaitThreadEndCB,"sceKernelWaitThreadEndCB"},
 	{0xd13bde95,sceKernelCheckThreadStack,"sceKernelCheckThreadStack"},
@@ -411,7 +416,7 @@ const HLEFunction ThreadManForUser[] =
 
 	{0xba6b92e2,sceKernelSysClock2USec,"sceKernelSysClock2USec"},
 	{0x110DEC9A,0,"sceKernelUSec2SysClock"},
-	{0xC8CD158C,0,"sceKernelUSec2SysClockWide"},
+	{0xC8CD158C,WrapU_U<sceKernelUSec2SysClockWide>,"sceKernelUSec2SysClockWide"},
 	{0xE1619D7C,sceKernelSysClock2USecWide,"sceKernelSysClock2USecWide"},
 
 	{0x110dec9a,sceKernelUSec2SysClock,"sceKernelUSec2SysClock"},
