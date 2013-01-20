@@ -56,11 +56,13 @@ struct Mp3Context {
   int mp3Version;
 
   MediaEngine *mediaengine;
+#ifdef USING_FFMPEG
   AVFormatContext *avformat_context;
   AVIOContext	  *avio_context;
   AVCodecContext  *decoder_context;
   SwrContext      *resampler_context;
   int audio_stream_index;
+#endif
 };
 
 static std::map<u32, Mp3Context *> mp3Map;
@@ -98,6 +100,12 @@ int sceMp3Decode(u32 mp3, u32 outPcmPtr)
 #ifndef USING_FFMPEG
   Memory::Memset(ctx->mp3PcmBuf, 0, ctx->mp3PcmBufSize);
   Memory::Write_U32(ctx->mp3PcmBuf, outPcmPtr);
+
+  ctx->bufferAvailable = 0;
+  ctx->bufferRead = 0;
+  ctx->bufferWrite = 0;
+
+  return ctx->mp3PcmBufSize;
 #else
 
   AVFrame frame;
@@ -119,17 +127,7 @@ int sceMp3Decode(u32 mp3, u32 outPcmPtr)
 		continue;
 	  }
 	  if (got_frame) {
-		INFO_LOG(HLE, "audio_frame n:%d nb_samples:%d pts:%s",
-				 audio_frame_count++, frame.nb_samples, av_ts2timestr(frame.pts, &ctx->decoder_context->time_base));
-
-		u8 *audio_dst_data;
-		int audio_dst_linesize;
-		
-		ret = av_samples_alloc(&audio_dst_data, &audio_dst_linesize, frame.channels, frame.nb_samples, (AVSampleFormat)frame.format, 1);
-		if (ret < 0) {
-		  ERROR_LOG(HLE, "av_samples_alloc: Could not allocate audio buffer %d", ret);
-		  return -1;
-		}
+		INFO_LOG(HLE, "audio_frame n:%d nb_samples:%d pts:%s", audio_frame_count++, frame.nb_samples, av_ts2timestr(frame.pts, &ctx->decoder_context->time_base));
 
 		int decoded = av_samples_get_buffer_size(NULL, frame.channels, frame.nb_samples, (AVSampleFormat)frame.format, 1);
 
@@ -140,19 +138,14 @@ int sceMp3Decode(u32 mp3, u32 outPcmPtr)
 		  return -1;
         }
 
-		//av_samples_copy(&audio_dst_data, frame.data, 0, 0, frame.nb_samples, frame.channels, (AVSampleFormat)frame.format);
-
-		//memcpy(Memory::GetPointer(ctx->mp3PcmBuf + bytesdecoded), audio_dst_data, decoded);
 		bytesdecoded += decoded;
-		//av_freep(&audio_dst_data[0]);
 	  }
 	}
 	av_free_packet(&packet);
   }
   Memory::Write_U32(ctx->mp3PcmBuf, outPcmPtr);
-#endif
   
-  //#if 0 && defined(_DEBUG)
+#if 0 && defined(_DEBUG)
   char fileName[256];
   sprintf(fileName, "out.wav", mp3);
 
@@ -162,14 +155,14 @@ int sceMp3Decode(u32 mp3, u32 outPcmPtr)
 	  ERROR_LOG(HLE, "sceMp3Decode mp3Buf %08X is not a valid address!", ctx->mp3Buf);
 	}
 
-	//u8 * ptr = Memory::GetPointer(ctx->mp3Buf);
 	fwrite(Memory::GetPointer(ctx->mp3PcmBuf), 1, bytesdecoded, file);
 
 	fclose(file);
   }
-  //#endif
+#endif
 
   return bytesdecoded;
+#endif
 }
 
 int sceMp3ResetPlayPosition(u32 mp3)
@@ -266,8 +259,10 @@ u32 sceMp3ReserveMp3Handle(u32 mp3Addr)
    ctx->mp3Bitrate = 128;
    ctx->mp3SamplingRate = 44100;*/
 
+#ifdef USING_FFMPEG
   ctx->avformat_context = NULL;
   ctx->avio_context = NULL;
+#endif
 
   mp3Map[mp3Addr] = ctx;
   return mp3Addr;
@@ -333,6 +328,7 @@ int sceMp3Init(u32 mp3)
 
   ctx->mp3Version = ((header >> 19) & 0x3);
 
+#ifdef USING_FFMPEG
   u8* avio_buffer = static_cast<u8*>(av_malloc(ctx->mp3BufSize));
   ctx->avio_context = avio_alloc_context(avio_buffer, ctx->mp3BufSize, 0, ctx, readFunc, NULL, NULL);
   ctx->avformat_context = avformat_alloc_context();
@@ -375,18 +371,17 @@ int sceMp3Init(u32 mp3)
 											  ctx->decoder_context->sample_rate,
 											  0, NULL);
   if (!ctx->resampler_context) {
-	ERROR_LOG(HLE, "Could not allocate resampler context %d", ret);
+	ERROR_LOG(HLE, "swr_alloc_set_opts: Could not allocate resampler context %d", ret);
 	return -1;
   }
 
   if ((ret = swr_init(ctx->resampler_context)) < 0) {
-	ERROR_LOG(HLE, "Failed to initialize the resampling context %d", ret);
+	ERROR_LOG(HLE, "swr_init: Failed to initialize the resampling context %d", ret);
 	return -1;
   }
 
-
   av_dump_format(ctx->avformat_context, 0, "mp3", 0);
-
+#endif
   return 0;
 }
 
@@ -526,8 +521,10 @@ int sceMp3ReleaseMp3Handle(u32 mp3) {
 	return -1;
   }
 
+#ifdef USING_FFMPEG
   av_free(ctx->avio_context->buffer);
   av_free(ctx->avio_context);
+#endif
   mp3Map.erase(mp3Map.find(mp3));
 
   delete ctx;

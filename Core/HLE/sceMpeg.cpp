@@ -301,8 +301,10 @@ void __MpegInit(bool useMediaEngine_) {
 	isCurrentMpegAnalyzed = false;
 	actionPostPut = __KernelRegisterActionType(PostPutAction::Create);
 
+#ifdef USING_FFMPEG
 	avcodec_register_all();
 	av_register_all();
+#endif
 }
 
 void __MpegDoState(PointerWrap &p) {

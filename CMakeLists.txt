@@ -927,30 +927,24 @@ set(NativeAssets
 	assets/ppge_atlas.zim)
 set(LinkCommon ${CoreLibName} ${CMAKE_THREAD_LIBS_INIT} ${nativeExtraLibs})
 
+if(USING_FFMPEG AND NOT DEFINED FFMPEG_BUILDDIR)
+	message(WARNING "FFMPEG_BUILDDIR variable is required to enable FFmpeg. Disabling it.")
+	unset(USING_FFMPEG)
+endif(USING_FFMPEG AND NOT DEFINED FFMPEG_BUILDDIR)
+
 if(USING_FFMPEG)
-    SET (FFMPEG_DIRS
-		$ENV{FFMPEG_DIR}
-		$ENV{FFMPEG_DIR}/libavcodec
-		$ENV{FFMPEG_DIR}/libavdevice
-		$ENV{FFMPEG_DIR}/libavfilter
-		$ENV{FFMPEG_DIR}/libavformat
-		$ENV{FFMPEG_DIR}/libavutil
-		$ENV{FFMPEG_DIR}/libavswresample
-		$ENV{FFMPEG_DIR}/libswscale
-	)
-	include_directories(ffmpeg)
-	include_directories(${CMAKE_BINARY_DIR}/ffmpeg)
+    include_directories(ffmpeg ${FFMPEG_BUILDDIR})
 
 	add_library(libavformat STATIC IMPORTED)
-	set_target_properties(libavformat PROPERTIES IMPORTED_LOCATION $ENV{FFMPEG_DIR}/libavformat/libavformat.a)
+	set_target_properties(libavformat PROPERTIES IMPORTED_LOCATION ${FFMPEG_BUILDDIR}/libavformat/libavformat.a)
 	add_library(libavcodec STATIC IMPORTED)
-	set_target_properties(libavcodec PROPERTIES IMPORTED_LOCATION $ENV{FFMPEG_DIR}/libavcodec/libavcodec.a)
+	set_target_properties(libavcodec PROPERTIES IMPORTED_LOCATION ${FFMPEG_BUILDDIR}/libavcodec/libavcodec.a)
 	add_library(libavutil STATIC IMPORTED)
-	set_target_properties(libavutil PROPERTIES IMPORTED_LOCATION $ENV{FFMPEG_DIR}/libavutil/libavutil.a)
+	set_target_properties(libavutil PROPERTIES IMPORTED_LOCATION ${FFMPEG_BUILDDIR}/libavutil/libavutil.a)
 	add_library(libswresample STATIC IMPORTED)
-	set_target_properties(libswresample PROPERTIES IMPORTED_LOCATION $ENV{FFMPEG_DIR}/libswresample/libswresample.a)
+	set_target_properties(libswresample PROPERTIES IMPORTED_LOCATION ${FFMPEG_BUILDDIR}/libswresample/libswresample.a)
 	add_library(libswscale STATIC IMPORTED)
-	set_target_properties(libswscale PROPERTIES IMPORTED_LOCATION $ENV{FFMPEG_DIR}/libswscale/libswscale.a)
+	set_target_properties(libswscale PROPERTIES IMPORTED_LOCATION ${FFMPEG_BUILDDIR}/libswscale/libswscale.a)
 
 	SET (FFMPEG_LIBRARIES
 		libavcodec
@@ -958,10 +952,12 @@ if(USING_FFMPEG)
 		libavutil
 		libswresample
 		libswscale
-		"-framework VideoDecodeAcceleration"
-		"-framework CoreVideo"
-		bz2
 	)
+	
+	if(APPLE)
+		set(FFMPEG_LIBRARIES ${FFMPEG_LIBRARIES} bz2 "-framework VideoDecodeAcceleration" "-framework CoreVideo")
+	endif(APPLE)
+	
 	set(LinkCommon ${LinkCommon} ${FFMPEG_LIBRARIES})
 	add_definitions(-DUSING_FFMPEG)
 endif(USING_FFMPEG)

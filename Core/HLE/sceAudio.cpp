@@ -354,6 +354,8 @@ u32 sceAudioSRCOutputBlocking(u32 volume, u32 buf) {
   chans[chanSRC].rightVolume = volume;
   chans[chanSRC].sampleAddress = buf;
   __AudioEnqueue(chans[chanSRC], chanSRC, true);
+
+  return chans[chanSRC].sampleCount;
 }
 
 const HLEFunction sceAudio[] = 
