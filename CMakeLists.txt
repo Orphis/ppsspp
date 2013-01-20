@@ -39,6 +39,7 @@ option(PANDORA "Set to ON if targeting an OpenPandora device" ${PANDORA})
 option(IOS "Set to ON if targeting an iOS device" ${IOS})
 option(USING_GLES2 "Set to ON if target device uses OpenGL ES 2.0" ${USING_GLES2})
 option(USING_QT_UI "Set to ON if you wish to use the Qt frontend wrapper" ${USING_QT_UI})
+option(USING_FFMPEG "Set to ON if you want to use FFmpeg for multimedia decoding" ${USING_FFMPEG})
 option(HEADLESS "Set to OFF to not generate the PPSSPPHeadless target" ${HEADLESS})
 
 if(ANDROID)
@@ -112,7 +113,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -D_NDEBUG")
 
 if(NOT MSVC)
 	# Disable some warnings
-	add_definitions(-O2)
+	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
 	add_definitions(-Wno-multichar)
 	add_definitions(-fno-strict-aliasing)
 	add_definitions(-ffast-math)
@@ -715,6 +716,8 @@ add_library(${CoreLibName} ${CoreLinkType}
 	Core/HLE/sceKernelTime.h
 	Core/HLE/sceKernelVTimer.cpp
 	Core/HLE/sceKernelVTimer.h
+	Core/HLE/sceMp3.cpp
+	Core/HLE/sceMp3.h
 	Core/HLE/sceMpeg.cpp
 	Core/HLE/sceMpeg.h
 	Core/HLE/sceNet.cpp
@@ -923,6 +926,45 @@ set(NativeAssets
 	android/assets/ui_atlas.zim
 	assets/ppge_atlas.zim)
 set(LinkCommon ${CoreLibName} ${CMAKE_THREAD_LIBS_INIT} ${nativeExtraLibs})
+
+if(USING_FFMPEG)
+    SET (FFMPEG_DIRS
+		$ENV{FFMPEG_DIR}
+		$ENV{FFMPEG_DIR}/libavcodec
+		$ENV{FFMPEG_DIR}/libavdevice
+		$ENV{FFMPEG_DIR}/libavfilter
+		$ENV{FFMPEG_DIR}/libavformat
+		$ENV{FFMPEG_DIR}/libavutil
+		$ENV{FFMPEG_DIR}/libavswresample
+		$ENV{FFMPEG_DIR}/libswscale
+	)
+	include_directories(ffmpeg)
+	include_directories(${CMAKE_BINARY_DIR}/ffmpeg)
+
+	add_library(libavformat STATIC IMPORTED)
+	set_target_properties(libavformat PROPERTIES IMPORTED_LOCATION $ENV{FFMPEG_DIR}/libavformat/libavformat.a)
+	add_library(libavcodec STATIC IMPORTED)
+	set_target_properties(libavcodec PROPERTIES IMPORTED_LOCATION $ENV{FFMPEG_DIR}/libavcodec/libavcodec.a)
+	add_library(libavutil STATIC IMPORTED)
+	set_target_properties(libavutil PROPERTIES IMPORTED_LOCATION $ENV{FFMPEG_DIR}/libavutil/libavutil.a)
+	add_library(libswresample STATIC IMPORTED)
+	set_target_properties(libswresample PROPERTIES IMPORTED_LOCATION $ENV{FFMPEG_DIR}/libswresample/libswresample.a)
+	add_library(libswscale STATIC IMPORTED)
+	set_target_properties(libswscale PROPERTIES IMPORTED_LOCATION $ENV{FFMPEG_DIR}/libswscale/libswscale.a)
+
+	SET (FFMPEG_LIBRARIES
+		libavcodec
+		libavformat
+		libavutil
+		libswresample
+		libswscale
+		"-framework VideoDecodeAcceleration"
+		"-framework CoreVideo"
+		bz2
+	)
+	set(LinkCommon ${LinkCommon} ${FFMPEG_LIBRARIES})
+	add_definitions(-DUSING_FFMPEG)
+endif(USING_FFMPEG)
 
 if (TargetBin)
 	add_executable(${TargetBin} ${NativeAppSource})

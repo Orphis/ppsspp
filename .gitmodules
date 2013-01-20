@@ -4,3 +4,6 @@
 [submodule "pspautotests"]
 	path = pspautotests
 	url = https://github.com/hrydgard/pspautotests.git
+[submodule "ffmpeg"]
+	path = ffmpeg
+	url = https://github.com/Orphis/FFmpeg.git

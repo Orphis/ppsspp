@@ -29,6 +29,7 @@
 
 
 AudioChannel chans[8];
+int chanSRC;
 
 // Enqueues the buffer pointer on the channel. If channel buffer queue is full (2 items?) will block until it isn't.
 // For solid audio output we'll need a queue length of 2 buffers at least, we'll try that first.
@@ -335,6 +336,26 @@ u32 sceAudioSetVolumeOffset(u32 unknown) {
 	return 0;
 }
 
+u32 sceAudioSRCChReserve(u32 sample, u32 rate, u32 channels) {
+  INFO_LOG(HLE, "HACK: sceAudioSRCChReserve(%d, %d, %d)", sample, rate, channels);
+  chanSRC = sceAudioChReserve(-1, sample, PSP_AUDIO_FORMAT_STEREO);
+  __AudioSetOutputFrequency(rate);
+  return chanSRC;
+}
+
+u32 sceAudioSRCChRelease() {
+  sceAudioChRelease(chanSRC);
+  chanSRC = -1;
+  return 0;
+}
+
+u32 sceAudioSRCOutputBlocking(u32 volume, u32 buf) {
+  chans[chanSRC].leftVolume = volume;
+  chans[chanSRC].rightVolume = volume;
+  chans[chanSRC].sampleAddress = buf;
+  __AudioEnqueue(chans[chanSRC], chanSRC, true);
+}
+
 const HLEFunction sceAudio[] = 
 {
 	// Newer simplified single channel audio output. Presumably for games that use Atrac3
@@ -365,9 +386,9 @@ const HLEFunction sceAudio[] =
 	{0xB7E1D8E7, WrapU_UUU<sceAudioChangeChannelVolume>, "sceAudioChangeChannelVolume"},
 
 	// I guess these are like the others but do sample rate conversion?
-	{0x38553111, 0, "sceAudioSRCChReserve"},
-	{0x5C37C0AE, 0, "sceAudioSRCChRelease"},
-	{0xE0727056, 0, "sceAudioSRCOutputBlocking"},
+	{0x38553111, WrapU_UUU<sceAudioSRCChReserve>, "sceAudioSRCChReserve"},
+	{0x5C37C0AE, WrapU_V<sceAudioSRCChRelease>, "sceAudioSRCChRelease"},
+	{0xE0727056, WrapU_UU<sceAudioSRCOutputBlocking>, "sceAudioSRCOutputBlocking"},
 
 	// Never seen these used
 	{0x41efade7, 0, "sceAudioOneshotOutput"},

@@ -95,4 +95,3 @@ void __MpegDoState(PointerWrap &p);
 void __MpegShutdown();
 
 void Register_sceMpeg();
-void Register_sceMp3();

@@ -29,6 +29,7 @@
 #include "sceFont.h"
 #include "sceNet.h"
 #include "sceMpeg.h"
+#include "sceMp3.h"
 #include "sceImpose.h"
 #include "sceGe.h"
 #include "scePsmf.h"
