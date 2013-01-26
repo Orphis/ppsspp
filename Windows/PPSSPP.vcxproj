@@ -107,7 +107,7 @@
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>XInput.lib;Winmm.lib;Ws2_32.lib;opengl32.lib;glu32.lib;comctl32.lib;dsound.lib;xinput.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>XInput.lib;Winmm.lib;Ws2_32.lib;opengl32.lib;libavcodec.a;libavdevice.a;libavformat.a;libavutil.a;libswresample.a;libswscale.a;glu32.lib;comctl32.lib;dsound.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
@@ -116,6 +116,7 @@
       <LargeAddressAware>true</LargeAddressAware>
       <BaseAddress>0x00400000</BaseAddress>
       <FixedBaseAddress>true</FixedBaseAddress>
+      <AdditionalLibraryDirectories>$(ProjectDir)/ffmpeg/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -135,7 +136,7 @@
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>XInput.lib;Winmm.lib;Ws2_32.lib;opengl32.lib;glu32.lib;comctl32.lib;dsound.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>XInput.lib;Winmm.lib;Ws2_32.lib;opengl32.lib;libavcodec.a;libavdevice.a;libavformat.a;libavutil.a;libswresample.a;libswscale.a;libavformat.a;glu32.lib;comctl32.lib;dsound.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(OutDir)$(ProjectName).pdb</ProgramDatabaseFile>
       <SubSystem>Windows</SubSystem>
@@ -143,6 +144,7 @@
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <LargeAddressAware>true</LargeAddressAware>
       <BaseAddress>0x00400000</BaseAddress>
+      <AdditionalLibraryDirectories>$(ProjectDir)/ffmpeg/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -166,9 +168,9 @@
       <ForcedIncludeFiles>stdafx.h</ForcedIncludeFiles>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>XInput.lib;Winmm.lib;Ws2_32.lib;opengl32.lib;dsound.lib;glu32.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>XInput.lib;Winmm.lib;Ws2_32.lib;opengl32.lib;libavcodec.a;libavdevice.a;libavformat.a;libavutil.a;libswresample.a;libswscale.a;libavformat.a;dsound.lib;glu32.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)/ffmpeg/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -206,8 +208,8 @@
       <ForcedIncludeFiles>stdafx.h</ForcedIncludeFiles>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>XInput.lib;Winmm.lib;Ws2_32.lib;opengl32.lib;dsound.lib;glu32.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>XInput.lib;Winmm.lib;Ws2_32.lib;opengl32.lib;libavcodec.a;libavdevice.a;libavformat.a;libavutil.a;libswresample.a;libswscale.a;libavformat.a;dsound.lib;glu32.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)/ffmpeg/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>

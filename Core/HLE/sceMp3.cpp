@@ -127,7 +127,7 @@ int sceMp3Decode(u32 mp3, u32 outPcmPtr)
 		continue;
 	  }
 	  if (got_frame) {
-		INFO_LOG(HLE, "audio_frame n:%d nb_samples:%d pts:%s", audio_frame_count++, frame.nb_samples, av_ts2timestr(frame.pts, &ctx->decoder_context->time_base));
+		INFO_LOG(HLE, "audio_frame n:%d nb_samples:%d" /*pts:%s"*/, audio_frame_count++, frame.nb_samples/*, av_ts2timestr(frame.pts, &ctx->decoder_context->time_base)*/);
 
 		int decoded = av_samples_get_buffer_size(NULL, frame.channels, frame.nb_samples, (AVSampleFormat)frame.format, 1);
 
@@ -194,7 +194,7 @@ int sceMp3CheckStreamDataNeeded(u32 mp3)
   return ctx->bufferAvailable != ctx->mp3BufSize && ctx->readPosition < ctx->mp3StreamEnd;
 }
 
-int readFunc(void *opaque, uint8_t *buf, int buf_size) {
+int readFunc(void *opaque, u8 *buf, int buf_size) {
   Mp3Context *ctx = static_cast<Mp3Context*>(opaque);
 
   int res = 0;

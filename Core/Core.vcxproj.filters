@@ -369,6 +369,9 @@
     <ClCompile Include="..\ext\disarm.cpp">
       <Filter>Ext</Filter>
     </ClCompile>
+    <ClCompile Include="HLE\sceMp3.cpp">
+      <Filter>HLE\Libraries</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ELF\ElfReader.h">
@@ -682,6 +685,9 @@
     </ClInclude>
     <ClInclude Include="..\Ext\disarm.h">
       <Filter>Ext</Filter>
+    </ClInclude>
+    <ClInclude Include="HLE\sceMp3.h">
+      <Filter>HLE\Libraries</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
