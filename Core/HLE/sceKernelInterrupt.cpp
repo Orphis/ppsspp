@@ -197,7 +197,7 @@ void IntrHandler::queueUp(int subintr)
 void IntrHandler::DoState(PointerWrap &p)
 {
 	p.Do(intrNumber);
-	p.Do(subIntrHandlers);
+	p.Do<int, SubIntrHandler>(subIntrHandlers);
 }
 
 void __InterruptsInit()
